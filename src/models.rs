@@ -274,7 +274,7 @@ pub struct ApiCache {
 }
 
 /// Progress tracking for an active verification operation
-/// 
+///
 /// NOTE: `verified_bytes` is atomically updated by verification tasks.
 /// Use `load(Ordering::Relaxed)` to read the current value.
 /// This avoids lock contention while multiple files are verified concurrently.
@@ -352,10 +352,11 @@ pub struct AppOptions {
 
 impl Default for AppOptions {
     fn default() -> Self {
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
         let hf_token = std::env::var("HF_TOKEN").ok().filter(|s| !s.is_empty());
         Self {
-            default_directory: format!("{}/models", home),
+            default_directory: crate::paths::default_download_dir()
+                .to_string_lossy()
+                .into_owned(),
             hf_token,
             concurrent_threads: 8,
             num_chunks: 20,

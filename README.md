@@ -70,6 +70,7 @@ A Terminal User Interface (TUI) application for searching, browsing, and downloa
 
 - **Rust**: 1.75.0 or newer (compatible with Ubuntu 22.04 LTS default compiler)
 - **Cargo**: Latest stable version
+- **Supported platforms**: Linux, macOS, Windows 10 1809+ / Windows 11
 
 ## Installation
 
@@ -103,6 +104,78 @@ rust-hf-downloader
 ```
 
 See: [rust-hf-downloader on crates.io](https://crates.io/crates/rust-hf-downloader)
+
+### Windows
+
+Prerequisites:
+
+- The MSVC Rust toolchain. Install the free
+  [Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio)
+  (select the "Desktop development with C++" workload) so `link.exe` is on
+  your PATH, then `rustup default stable-x86_64-pc-windows-msvc`.
+- A modern terminal for TUI mode: Windows Terminal or PowerShell 7+ is
+  recommended (the legacy `cmd.exe` on builds older than Windows 10 1809
+  does not support ANSI escape sequences and will render garbled output).
+
+Install from PowerShell:
+
+```powershell
+cargo install rust-hf-downloader
+rust-hf-downloader
+```
+
+Pre-built binaries (when a release has been cut) are attached to the
+[Releases page](https://github.com/JohannesBertens/rust-hf-downloader/releases)
+as `rust-hf-downloader-windows-x86_64.zip`. Extract `rust-hf-downloader.exe`
+anywhere on your PATH. Unsigned binaries may trigger a Windows Defender
+SmartScreen prompt on first run &mdash; click "More info" &rarr; "Run anyway".
+
+Setting `HF_TOKEN` in PowerShell:
+
+```powershell
+# Session only
+$env:HF_TOKEN = "hf_xxxxxxxxxxxx"
+
+# Persist for your user across sessions
+[Environment]::SetEnvironmentVariable("HF_TOKEN", "hf_xxxxxxxxxxxx", "User")
+```
+
+You can also paste the token into the Options screen (press `o` in the TUI)
+and it will be saved to the config file.
+
+### Portable mode
+
+The app supports a portable layout suitable for running from a USB stick or
+any user-chosen folder.
+
+**Environment variable overrides** (highest priority):
+
+| Variable | Purpose |
+|---|---|
+| `RUST_HF_DOWNLOADER_CONFIG_DIR` | Directory that contains `config.toml` |
+| `RUST_HF_DOWNLOADER_DATA_DIR` | Directory that contains `hf-downloads.toml` and (by default) downloaded models |
+
+Example:
+
+```powershell
+$env:RUST_HF_DOWNLOADER_CONFIG_DIR = "D:\jreb-config"
+$env:RUST_HF_DOWNLOADER_DATA_DIR = "D:\jreb-models"
+rust-hf-downloader
+```
+
+**Auto-portable detection**: if a file named `config.toml` sits next to the
+running executable, the app treats the executable's directory as the config
+directory and uses `<exe-dir>\models` as the data directory. To enable
+portable mode on Windows:
+
+```powershell
+# From the directory containing rust-hf-downloader.exe
+New-Item -ItemType File -Path .\config.toml -Force | Out-Null
+.\rust-hf-downloader.exe
+```
+
+Both config edits and downloaded model files will then stay inside that
+folder, leaving `%APPDATA%` and `%USERPROFILE%` untouched.
 
 ## CLI Mode
 
@@ -263,10 +336,30 @@ docker run --rm \
 
 ### Configuration
 
-CLI mode respects the same configuration file as TUI mode:
+CLI mode respects the same configuration file as TUI mode.
 
-- **Location**: `~/.config/jreb/config.toml`
-- **Settings**: Default directory, token, thread count, etc.
+**Default config location**:
+
+| Platform | Path |
+|---|---|
+| Linux | `~/.config/jreb/config.toml` |
+| macOS | `~/Library/Application Support/jreb/config.toml` |
+| Windows | `%APPDATA%\jreb\config.toml` (usually `C:\Users\<you>\AppData\Roaming\jreb\config.toml`) |
+
+The location can be overridden via the `RUST_HF_DOWNLOADER_CONFIG_DIR`
+environment variable or by placing `config.toml` next to the executable
+(see [Portable mode](#portable-mode)).
+
+**Default download directory / registry**:
+
+| Platform | Path |
+|---|---|
+| Linux / macOS | `~/models/` (registry at `~/models/hf-downloads.toml`) |
+| Windows | `%USERPROFILE%\models\` (registry at `%USERPROFILE%\models\hf-downloads.toml`) |
+
+The data directory can be overridden via `RUST_HF_DOWNLOADER_DATA_DIR`.
+
+**Settings**: Default directory, token, thread count, etc.
 
 Example config:
 
@@ -288,8 +381,10 @@ rust-hf-downloader --headless download "model-id" \
   --token "hf_..." \
   --quantization "Q4_K_M"
 
-# Via config file
-# Add to ~/.config/jreb/config.toml:
+# Via config file — see "Default config location" above for the path on your
+# platform (~/.config/jreb/config.toml on Linux,
+# ~/Library/Application Support/jreb/config.toml on macOS,
+# %APPDATA%\jreb\config.toml on Windows). Add:
 # hf_token = "hf_..."
 ```
 

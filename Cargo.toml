@@ -28,6 +28,7 @@ sha2 = "0.10"
 hex = "0.4"
 once_cell = "1.19"
 clap = { version = "4.5", features = ["derive"] }
+dirs = "5.0"
 
 # Pin dependencies for Rust 1.75.0 compatibility (Ubuntu 22.04)
 url = "=2.4.1"
