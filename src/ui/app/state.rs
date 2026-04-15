@@ -1,12 +1,12 @@
 use crate::models::*;
 use crossterm::event::EventStream;
+use parking_lot::RwLock;
 use ratatui::layout::Rect;
 use ratatui::widgets::ListState;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
-use parking_lot::RwLock;
 use tokio::sync::{mpsc, Mutex};
 use tui_input::Input;
 

@@ -686,7 +686,9 @@ pub async fn wait_for_verification(
                             .as_ref()
                             .map(|p| p.filename.as_str())
                             .unwrap_or("")
-                    || (progress.verified_bytes.load(std::sync::atomic::Ordering::Relaxed) as f64
+                    || (progress
+                        .verified_bytes
+                        .load(std::sync::atomic::Ordering::Relaxed) as f64
                         - last_progress
                             .as_ref()
                             .map(|l| l.verified_bytes.load(std::sync::atomic::Ordering::Relaxed))
@@ -696,7 +698,9 @@ pub async fn wait_for_verification(
                 if should_report {
                     reporter.report_verification_progress(
                         &progress.filename,
-                        progress.verified_bytes.load(std::sync::atomic::Ordering::Relaxed),
+                        progress
+                            .verified_bytes
+                            .load(std::sync::atomic::Ordering::Relaxed),
                         progress.total_bytes,
                         progress.speed_mbps,
                     );
