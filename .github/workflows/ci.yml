@@ -22,10 +22,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust toolchain (MSRV 1.75.0)
-        uses: dtolnay/rust-toolchain@master
+      - name: Install Rust toolchain (stable)
+        # The project's transitive deps require features newer than the
+        # historical 1.75 MSRV claim (e.g. clap_builder needs edition2024),
+        # so CI tests against current stable.
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: "1.75.0"
           components: rustfmt, clippy
 
       - name: Cache cargo
@@ -68,10 +70,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust toolchain (MSRV 1.75.0)
-        uses: dtolnay/rust-toolchain@master
+      - name: Install Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: "1.75.0"
           targets: ${{ matrix.target }}
 
       - name: Cache cargo
