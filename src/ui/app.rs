@@ -489,8 +489,7 @@ impl App {
                 if let Some(model_id) = msg.strip_prefix("AUTH_ERROR:") {
                     let model_url = format!("https://huggingface.co/{}", model_id);
                     self.popup_mode = PopupMode::AuthError { model_url };
-                    *self.status.write() =
-                        format!("Authentication required for {}", model_id);
+                    *self.status.write() = format!("Authentication required for {}", model_id);
                 } else {
                     *self.status.write() = msg;
                 }

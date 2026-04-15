@@ -11,6 +11,7 @@ This document covers common issues, their causes, and solutions.
 - [Performance Issues](#performance-issues)
 - [File Path Issues](#file-path-issues)
 - [Configuration Issues](#configuration-issues)
+- [Windows-Specific Issues](#windows-specific-issues)
 
 ## Installation Issues
 
@@ -147,8 +148,17 @@ cargo install --path .
 **Solution**: Check config file permissions:
 
 ```bash
+# Linux
 chmod 600 ~/.config/jreb/config.toml
+
+# macOS
+chmod 600 ~/Library/Application\ Support/jreb/config.toml
 ```
+
+On Windows, per-user file ACLs are applied automatically by the OS when the
+file is created in `%APPDATA%`; no `chmod` equivalent is required. Verify the
+file isn't marked read-only (right-click &rarr; Properties), and that you
+are running the app as the same user who created the config.
 
 ### Still Getting 401 After Adding Token
 
@@ -238,23 +248,41 @@ echo $LINES $COLUMNS
 **Solution**: Use absolute paths:
 
 ```bash
-# Instead of:
+# Linux/macOS — instead of:
 ~/models/
-
 # Use:
 /home/username/models/
+```
+
+```powershell
+# Windows — instead of:
+.\models
+# Use:
+C:\Users\username\models
 ```
 
 ### Permission Denied
 
 **Symptom**: Cannot write to download directory
 
-**Solution**: Fix directory permissions:
+**Solution**: Fix directory permissions (or pick a location you own):
 
 ```bash
+# Linux/macOS
 mkdir -p ~/models
 chmod 755 ~/models
 ```
+
+```powershell
+# Windows
+New-Item -ItemType Directory -Path "$env:USERPROFILE\models" -Force
+```
+
+On Windows, avoid download directories under UAC-protected paths such as
+`C:\Program Files\`, `C:\Windows\`, or `C:\ProgramData\` &mdash; these
+require elevation per write and will fail with permission errors. Use
+`C:\Users\<you>\models`, a secondary drive (`D:\models`), or the portable
+layout described in the README.
 
 ### Downloads Go to Wrong Location
 
@@ -263,8 +291,9 @@ chmod 755 ~/models
 **Solution**: Use simple download path:
 
 1. Press `d` on quantization
-2. Edit path to simple location: `/home/user/models`
-3. Files will be organized as: `/home/user/models/author/model-name/filename`
+2. Edit path to a simple location (e.g. `/home/user/models` on Linux/macOS or
+   `C:\Users\user\models` on Windows)
+3. Files will be organized as: `<base>/author/model-name/filename`
 
 ## Configuration Issues
 
@@ -276,10 +305,17 @@ chmod 755 ~/models
 
 1. Check config file exists:
    ```bash
+   # Linux
    cat ~/.config/jreb/config.toml
+   # macOS
+   cat "$HOME/Library/Application Support/jreb/config.toml"
+   ```
+   ```powershell
+   # Windows
+   Get-Content "$env:APPDATA\jreb\config.toml"
    ```
 
-2. Fix config file permissions:
+2. Fix config file permissions (Unix only; Windows handles ACLs automatically):
    ```bash
    chmod 600 ~/.config/jreb/config.toml
    ```
@@ -296,9 +332,92 @@ chmod 755 ~/models
 
 ### Cannot Find Configuration File
 
-**Location**: `~/.config/jreb/config.toml`
+**Default locations**:
+
+| Platform | Path |
+|---|---|
+| Linux | `~/.config/jreb/config.toml` |
+| macOS | `~/Library/Application Support/jreb/config.toml` |
+| Windows | `%APPDATA%\jreb\config.toml` |
+
+The location may have been overridden via the `RUST_HF_DOWNLOADER_CONFIG_DIR`
+environment variable, or by portable mode (a `config.toml` next to the
+executable). See the README for details.
 
 If missing, the application will regenerate defaults on next start.
+
+## Windows-Specific Issues
+
+### TUI renders garbled characters in `cmd.exe`
+
+**Symptom**: Escape sequences (`ESC[2K`, `[0m`, etc.) appear as literal text
+instead of styling the output.
+
+**Cause**: Legacy `cmd.exe` builds (pre-Windows 10 1809) do not support ANSI /
+VT escape sequences.
+
+**Solution**: Use [Windows Terminal](https://aka.ms/terminal) or PowerShell 7+,
+both of which ship with full VT support. On Windows 10 1809 and newer, modern
+`cmd.exe` also works.
+
+### Windows Defender SmartScreen warning on first run
+
+**Symptom**: "Windows protected your PC" dialog when launching a downloaded
+`rust-hf-downloader.exe`.
+
+**Cause**: The binary is not code-signed.
+
+**Solution**: Click **More info** &rarr; **Run anyway**. As an alternative
+that avoids the warning, build from source with
+`cargo install rust-hf-downloader`.
+
+### Path too long (`ERROR_PATH_NOT_FOUND`, `os error 3`)
+
+**Symptom**: Downloads fail with a path-not-found error when the full path
+would exceed 260 characters (for example, a long model name under a deep
+user directory).
+
+**Cause**: The classic Windows `MAX_PATH` limit of 260 characters.
+
+**Solution**: Enable the Win32 long-path feature system-wide. In an elevated
+PowerShell session:
+
+```powershell
+New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
+    -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
+```
+
+Reboot, then retry. Alternatively, pick a shorter base directory (e.g.
+`C:\m` instead of `C:\Users\longusername\models`) via the Options screen or
+`--output`.
+
+### "Config file is being used by another process"
+
+**Symptom**: `save_config` fails with an access-denied error.
+
+**Cause**: Another process (usually a text editor such as Notepad) has the
+config file open. Unlike Unix, Windows enforces mandatory file locks.
+
+**Solution**: Close the editor, then retry. The app's `load_config` already
+falls back to defaults with a warning if read fails, so only writes are
+affected.
+
+### HF_TOKEN environment variable not picked up in a new terminal
+
+**Symptom**: `$env:HF_TOKEN = "..."` works in one PowerShell, but a freshly
+opened terminal asks for the token again.
+
+**Cause**: `$env:VAR` assignments in PowerShell are session-local and do not
+persist.
+
+**Solution**: Persist the variable for your user:
+
+```powershell
+[Environment]::SetEnvironmentVariable("HF_TOKEN", "hf_xxxxxxxxxxxx", "User")
+```
+
+Close and reopen the terminal; `rust-hf-downloader --headless search "llama"`
+should now pick up the token automatically.
 
 ## Still Having Issues?
 

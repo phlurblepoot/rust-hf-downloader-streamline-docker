@@ -4,8 +4,7 @@ use std::path::PathBuf;
 
 /// Get the path to the configuration file
 pub fn get_config_path() -> PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-    PathBuf::from(format!("{}/.config/jreb/config.toml", home))
+    crate::paths::config_path()
 }
 
 /// Ensure the config directory exists
@@ -63,7 +62,20 @@ mod tests {
     #[test]
     fn test_get_config_path() {
         let path = get_config_path();
-        assert!(path.to_string_lossy().contains(".config/jreb/config.toml"));
+        // The file name is constant on every platform.
+        assert_eq!(
+            path.file_name().and_then(|s| s.to_str()),
+            Some("config.toml"),
+            "unexpected config path: {:?}",
+            path
+        );
+        // The path must have a parent directory; we never want the config to
+        // be written at the filesystem root.
+        assert!(
+            path.parent().is_some_and(|p| !p.as_os_str().is_empty()),
+            "config path has no meaningful parent: {:?}",
+            path
+        );
     }
 
     #[test]

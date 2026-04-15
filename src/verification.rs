@@ -176,9 +176,9 @@ async fn calculate_sha256_with_progress(
             .iter()
             .find(|p| p.filename == filename)
             .map(|p| p.verified_bytes.clone())
-            // NOTE: If progress entry is removed mid-verification (e.g., cancellation),
-            // verified_bytes becomes None. This is safe - we simply stop atomic updates.
-            // The verification will still complete and final progress will be cleared.
+        // NOTE: If progress entry is removed mid-verification (e.g., cancellation),
+        // verified_bytes becomes None. This is safe - we simply stop atomic updates.
+        // The verification will still complete and final progress will be cleared.
     };
 
     loop {

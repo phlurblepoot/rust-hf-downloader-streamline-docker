@@ -51,11 +51,38 @@ pub fn sanitize_path_component(component: &str) -> Option<String> {
         return None;
     }
 
+    // Reject any ASCII control character (0x00-0x1F, 0x7F) and the Windows-
+    // illegal characters `< > : " | ? *`. Rejecting these on all platforms
+    // keeps behaviour consistent across Unix and Windows.
+    if component
+        .chars()
+        .any(|c| c.is_ascii_control() || matches!(c, '<' | '>' | ':' | '"' | '|' | '?' | '*'))
+    {
+        return None;
+    }
+
     // Remove leading/trailing whitespace, but preserve leading dots (for dotfiles like .gitattributes)
     // Only trim trailing dots (can cause issues on Windows)
     let trimmed = component.trim().trim_end_matches('.');
 
     if trimmed.is_empty() {
+        return None;
+    }
+
+    // Reject Windows reserved device names, case-insensitive, with or without
+    // a file extension (e.g. `CON`, `con.txt`, `LPT3.gguf` are all reserved).
+    // Rejecting these on every platform is safe — these names are not used
+    // by real HuggingFace model files.
+    const RESERVED: &[&str] = &[
+        "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8",
+        "com9", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+    ];
+    let stem = trimmed
+        .split('.')
+        .next()
+        .unwrap_or(trimmed)
+        .to_ascii_lowercase();
+    if RESERVED.contains(&stem.as_str()) {
         return None;
     }
 
@@ -851,4 +878,89 @@ async fn download_chunk_with_progress(
     file.flush().await?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sanitize_path_component;
+
+    #[test]
+    fn sanitize_accepts_plain_names() {
+        assert_eq!(
+            sanitize_path_component("model.gguf"),
+            Some("model.gguf".to_string())
+        );
+        assert_eq!(
+            sanitize_path_component("Q4_K_M"),
+            Some("Q4_K_M".to_string())
+        );
+        // Leading dot is allowed (dotfiles like .gitattributes).
+        assert_eq!(
+            sanitize_path_component(".gitattributes"),
+            Some(".gitattributes".to_string())
+        );
+    }
+
+    #[test]
+    fn sanitize_rejects_traversal_and_separators() {
+        assert_eq!(sanitize_path_component(""), None);
+        assert_eq!(sanitize_path_component("."), None);
+        assert_eq!(sanitize_path_component(".."), None);
+        assert_eq!(sanitize_path_component("a/b"), None);
+        assert_eq!(sanitize_path_component("a\\b"), None);
+        assert_eq!(sanitize_path_component("a\0b"), None);
+    }
+
+    #[test]
+    fn sanitize_rejects_windows_illegal_chars() {
+        for c in ['<', '>', ':', '"', '|', '?', '*'] {
+            let name = format!("bad{}name", c);
+            assert_eq!(
+                sanitize_path_component(&name),
+                None,
+                "expected rejection of {:?}",
+                name
+            );
+        }
+        // Control characters are also rejected.
+        assert_eq!(sanitize_path_component("bad\x01name"), None);
+    }
+
+    #[test]
+    fn sanitize_rejects_windows_reserved_names() {
+        // Bare device names (case-insensitive).
+        assert_eq!(sanitize_path_component("CON"), None);
+        assert_eq!(sanitize_path_component("con"), None);
+        assert_eq!(sanitize_path_component("PRN"), None);
+        assert_eq!(sanitize_path_component("NUL"), None);
+        assert_eq!(sanitize_path_component("com1"), None);
+        assert_eq!(sanitize_path_component("LPT9"), None);
+
+        // Reserved names with extensions are still reserved on Windows.
+        assert_eq!(sanitize_path_component("con.txt"), None);
+        assert_eq!(sanitize_path_component("LPT3.gguf"), None);
+        assert_eq!(sanitize_path_component("NUL.safetensors"), None);
+
+        // Similar-looking-but-safe names must still be accepted.
+        assert_eq!(
+            sanitize_path_component("concert.txt"),
+            Some("concert.txt".to_string())
+        );
+        assert_eq!(
+            sanitize_path_component("console.log"),
+            Some("console.log".to_string())
+        );
+        // "com0" is NOT reserved (only com1-com9 are).
+        assert_eq!(sanitize_path_component("com0"), Some("com0".to_string()));
+    }
+
+    #[test]
+    fn sanitize_trims_trailing_dots() {
+        assert_eq!(
+            sanitize_path_component("weights..."),
+            Some("weights".to_string())
+        );
+        // Trimming should not expose a reserved name.
+        assert_eq!(sanitize_path_component("con..."), None);
+    }
 }
